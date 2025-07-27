@@ -179,6 +179,12 @@ async function run() {
       res.send(result);
     });
 
+    app.post("/reviews", verifyToken, async (req, res) => {
+      const review = req.body;
+      const result = await reviewsCollection.insertOne(review);
+      res.send(result);
+    });
+
     //carts related api
     app.get("/carts", async (req, res) => {
       const email = req.query.email;
