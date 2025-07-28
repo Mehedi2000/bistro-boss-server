@@ -2,12 +2,22 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
 require("dotenv").config();
 const port = process.env.PORT || 5000;
 
 // middleware
 app.use(cors());
 app.use(express.json());
+
+// Set up Gmail transport via Nodemailer
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_PASS,
+  },
+});
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.2bdroqy.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -122,6 +132,26 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const result = await userCollection.deleteOne(query);
       res.send(result);
+    });
+
+    //Contact related api
+    app.post("/contactUs", async (req, res) => {
+      const { name, email, phone, message } = req.body;
+      try {
+        const info = await transporter.sendMail({
+          from: email,
+          to: process.env.GMAIL_USER,
+          subject: `Contact message from ${name}`,
+          html: `<p><strong>Name: </strong>${name}</p>
+          <p><strong>Email: </strong>${email}</p>
+          <p><strong>Phone: </strong>${phone}</p>
+          <p><strong>Message: </strong>${message}</p>
+          `,
+        });
+        res.status(200).json({ success: true });
+      } catch (err) {
+        res.status(500).json({ success: false });
+      }
     });
 
     //menu related api
@@ -244,7 +274,20 @@ async function run() {
       };
       const deleteResult = await cartCollection.deleteMany(query);
 
-      res.send({ paymentResult, deleteResult });
+      //send user email about payment information
+
+      const info = await transporter.sendMail({
+        from: payment.email,
+        to: process.env.GMAIL_USER,
+        subject: "Bistro Boss Order Confirmation",
+        html: `
+          <h2>Thank you for your order</h2>
+          <p>Your Transaction Id: <strong>${payment.transactionId}</strong></p>
+          <p>We would like to get your feedback about the food</p>
+          `,
+      });
+
+      res.send({ paymentResult, deleteResult, info });
     });
 
     //stats or analytics
